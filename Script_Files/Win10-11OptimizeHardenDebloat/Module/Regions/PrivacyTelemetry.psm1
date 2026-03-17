@@ -2226,7 +2226,7 @@ function LockWidgets {
             Write-ConsoleStatus -Action "Enabling Windows Web Experience Pack"
             LogInfo "Enabling Windows Web Experience Pack"
             Invoke-SilencedProgress {
-                Get-AppxPackage -AllUsers *WebExperience* | ForEach-Object {
+                Get-AppxPackage -AllUsers *WebExperience* -WarningAction SilentlyContinue | ForEach-Object {
                     Add-AppxPackage -Register "$($_.InstallLocation)\AppXManifest.xml" -DisableDevelopmentMode
                 } | Out-Null
             }
@@ -2237,7 +2237,7 @@ function LockWidgets {
             Write-ConsoleStatus -Action "Disabling Windows Web Experience Pack"
             LogInfo "Disabling Windows Web Experience Pack"
             Invoke-SilencedProgress {
-                Get-AppxPackage *WebExperience* | Remove-AppxPackage | Out-Null
+                Get-AppxPackage *WebExperience* -WarningAction SilentlyContinue | Remove-AppxPackage | Out-Null
             }
             Write-Host " success!" -ForegroundColor Green
         }

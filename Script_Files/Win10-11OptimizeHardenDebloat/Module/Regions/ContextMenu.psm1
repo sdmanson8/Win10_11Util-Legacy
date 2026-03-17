@@ -206,7 +206,7 @@ function EditWithClipchampContext
 		$Show
 	)
 
-	if (-not (Get-AppxPackage -Name Clipchamp.Clipchamp))
+	if (-not (Get-AppxPackage -Name Clipchamp.Clipchamp -WarningAction SilentlyContinue))
 	{
 		LogWarning ($Localization.Skipped -f $MyInvocation.Line.Trim())
 
@@ -295,7 +295,7 @@ function EditWithPhotosContext
 		$Show
 	)
 
-	if (-not (Get-AppxPackage -Name Microsoft.Windows.Photos))
+	if (-not (Get-AppxPackage -Name Microsoft.Windows.Photos -WarningAction SilentlyContinue))
 	{
 		LogWarning ($Localization.Skipped -f $MyInvocation.Line.Trim())
 
@@ -384,7 +384,7 @@ function EditWithPaintContext
 		$Show
 	)
 
-	if (-not (Get-AppxPackage -Name Microsoft.Paint))
+	if (-not (Get-AppxPackage -Name Microsoft.Paint -WarningAction SilentlyContinue))
 	{
 		LogWarning ($Localization.Skipped -f $MyInvocation.Line.Trim())
 
@@ -797,7 +797,7 @@ function OpenWindowsTerminalContext
 		$Hide
 	)
 
-	if (-not (Get-AppxPackage -Name Microsoft.WindowsTerminal))
+	if (-not (Get-AppxPackage -Name Microsoft.WindowsTerminal -WarningAction SilentlyContinue))
 	{
 		LogWarning ($Localization.Skipped -f $MyInvocation.Line.Trim())
 		return
@@ -885,7 +885,7 @@ function OpenWindowsTerminalAdminContext
 		$Disable
 	)
 
-	if (-not (Get-AppxPackage -Name Microsoft.WindowsTerminal))
+	if (-not (Get-AppxPackage -Name Microsoft.WindowsTerminal -WarningAction SilentlyContinue))
 	{
 		LogWarning ($Localization.Skipped -f $MyInvocation.Line.Trim())
 

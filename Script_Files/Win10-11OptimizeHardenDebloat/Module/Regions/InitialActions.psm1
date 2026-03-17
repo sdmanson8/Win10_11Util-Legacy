@@ -336,7 +336,7 @@ public static extern bool SetForegroundWindow(IntPtr hWnd);
 	{
 		LogInfo "Windows Feature Experience Pack check is not applicable on Windows Server."
 	}
-	elseif (-not (Get-AppxPackage -Name MicrosoftWindows.Client.CBS))
+	elseif (-not (Get-AppxPackage -Name MicrosoftWindows.Client.CBS -WarningAction SilentlyContinue))
 	{
 		LogWarning ($Localization.WindowsComponentBroken -f "Windows Feature Experience Pack")
 	}
@@ -354,7 +354,7 @@ public static extern bool SetForegroundWindow(IntPtr hWnd);
 	{
 		LogInfo "Microsoft Store presence check is not applicable on Windows Server."
 	}
-	elseif (-not (Get-AppxPackage -Name Microsoft.WindowsStore))
+	elseif (-not (Get-AppxPackage -Name Microsoft.WindowsStore -WarningAction SilentlyContinue))
 	{
 		LogWarning ($Localization.WindowsComponentBroken -f "Microsoft Store")
 	}

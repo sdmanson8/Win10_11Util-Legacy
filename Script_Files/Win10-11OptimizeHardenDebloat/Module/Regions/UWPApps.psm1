@@ -359,12 +359,12 @@ function UWPApps
          			if ($IsAdmin)
          			{
             				# Admin: Check all users
-            				$Installed = Get-AppxPackage -Name $Package.Name -AllUsers -ErrorAction SilentlyContinue
+            				$Installed = Get-AppxPackage -Name $Package.Name -AllUsers -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
          			}
          			else
          			{
             				# Non-admin: Can only check current user
-            				$Installed = Get-AppxPackage -Name $Package.Name -ErrorAction SilentlyContinue
+            				$Installed = Get-AppxPackage -Name $Package.Name -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
             				if (-not $script:AllUsersWarningShown)
             				{
            					LogWarning "Running without admin rights - 'All Users' mode will only check current user"
@@ -375,7 +375,7 @@ function UWPApps
           		else
           		{
          			# Current user only
-         			$Installed = Get-AppxPackage -Name $Package.Name -ErrorAction SilentlyContinue
+         			$Installed = Get-AppxPackage -Name $Package.Name -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
           		}
 
           		if ($null -eq $Installed)
@@ -458,7 +458,7 @@ function UWPApps
           						Add-AppxPackage -DisableDevelopmentMode -Register $ManifestPath -ErrorAction Stop
           						Start-Sleep -Seconds 2
 
-          						$VerifyInstall = Get-AppxPackage -Name $PackageName -AllUsers:$CheckBoxForAllUsers.IsChecked -ErrorAction SilentlyContinue
+          						$VerifyInstall = Get-AppxPackage -Name $PackageName -AllUsers:$CheckBoxForAllUsers.IsChecked -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
           						if ($VerifyInstall)
           						{
          							$SuccessfulPackages.Add($PackageName)
@@ -492,7 +492,7 @@ function UWPApps
            					Add-AppxProvisionedPackage -Online -PackageName $Provisioned.PackageName -SkipLicense -ErrorAction Stop | Out-Null
            					Start-Sleep -Seconds 3
 
-           					$VerifyInstall = Get-AppxPackage -Name $PackageName -AllUsers:$CheckBoxForAllUsers.IsChecked -ErrorAction SilentlyContinue
+           					$VerifyInstall = Get-AppxPackage -Name $PackageName -AllUsers:$CheckBoxForAllUsers.IsChecked -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
            					if ($VerifyInstall)
            					    {
               						$SuccessfulPackages.Add($PackageName)
@@ -528,7 +528,7 @@ function UWPApps
 								}
 
            					Start-Sleep -Seconds 5
-           					$AfterWinget = Get-AppxPackage -Name $PackageName -AllUsers:$CheckBoxForAllUsers.IsChecked -ErrorAction SilentlyContinue
+           					$AfterWinget = Get-AppxPackage -Name $PackageName -AllUsers:$CheckBoxForAllUsers.IsChecked -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
 
            					if ($AfterWinget)
            					{
@@ -550,7 +550,7 @@ function UWPApps
             				[System.Windows.Forms.MessageBox]::Show("Microsoft Store has been opened for $PackageName.`n`nPlease install the app manually, then click OK to continue with the next app.", "Manual Installation Required", "OK", "Information")
 
             				Start-Sleep -Seconds 2
-            				$AfterStore = Get-AppxPackage -Name $PackageName -AllUsers:$CheckBoxForAllUsers.IsChecked -ErrorAction SilentlyContinue
+            				$AfterStore = Get-AppxPackage -Name $PackageName -AllUsers:$CheckBoxForAllUsers.IsChecked -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
             				if ($AfterStore)
             				{
                					$SuccessfulPackages.Add($PackageName)
@@ -936,7 +936,7 @@ function UWPApps
 					$AllUsers
 				)
 
-				$AppxPackages = @(Get-AppxPackage -PackageTypeFilter Bundle -AllUsers:$AllUsers | Where-Object -FilterScript {$_.Name -notin $ExcludedAppxPackages})
+				$AppxPackages = @(Get-AppxPackage -PackageTypeFilter Bundle -AllUsers:$AllUsers -WarningAction SilentlyContinue | Where-Object -FilterScript {$_.Name -notin $ExcludedAppxPackages})
 
 				# The -PackageTypeFilter Bundle doesn't contain these packages, and we need to add manually
 				$Packages = @(
@@ -948,9 +948,9 @@ function UWPApps
 				)
 				foreach ($Package in $Packages)
 				{
-					if (Get-AppxPackage -Name $Package -AllUsers:$AllUsers)
+					if (Get-AppxPackage -Name $Package -AllUsers:$AllUsers -WarningAction SilentlyContinue)
 					{
-						$AppxPackages += Get-AppxPackage -Name $Package -AllUsers:$AllUsers
+						$AppxPackages += Get-AppxPackage -Name $Package -AllUsers:$AllUsers -WarningAction SilentlyContinue
 					}
 				}
 
@@ -1229,7 +1229,7 @@ function CortanaAutostart
 		$Enable
 	)
 
-	if (-not (Get-AppxPackage -Name Microsoft.549981C3F5F10))
+	if (-not (Get-AppxPackage -Name Microsoft.549981C3F5F10 -WarningAction SilentlyContinue))
 	{
 		LogWarning ($Localization.Skipped -f $MyInvocation.Line.Trim())
 		return

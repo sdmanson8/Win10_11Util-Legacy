@@ -2348,7 +2348,7 @@ function NewsInterests
 	$null = Remove-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\PolicyManager\default\NewsAndInterests\AllowNewsAndInterests" -Name value -Force -ErrorAction SilentlyContinue
 
 	# Skip if Edge is not installed
-	if (-not (Get-Package -Name "Microsoft Edge" -ProviderName Programs -ErrorAction SilentlyContinue))
+	if (-not (Get-Package -Name "Microsoft Edge" -ProviderName Programs -ErrorAction SilentlyContinue -WarningAction SilentlyContinue))
 	{
 		LogInfo ($Localization.Skipped -f $MyInvocation.Line.Trim())
 		return
@@ -2569,7 +2569,7 @@ function TaskbarWidgets
 		$Show
 	)
 
-	if (-not (Get-AppxPackage -Name MicrosoftWindows.Client.WebExperience))
+	if (-not (Get-AppxPackage -Name MicrosoftWindows.Client.WebExperience -WarningAction SilentlyContinue))
 	{
 		LogInfo ($Localization.Skipped -f $MyInvocation.Line.Trim())
 		#LogWarning ($Localization.Skipped -f $MyInvocation.Line.Trim())
@@ -3036,6 +3036,9 @@ function UnpinTaskbarShortcuts
 	)
 
 	$TaskbarPinnedPath = Join-Path $env:AppData "Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar"
+	$IsARM64 = ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") -or
+		($env:PROCESSOR_ARCHITEW6432 -eq "ARM64") -or
+		([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture -eq [System.Runtime.InteropServices.Architecture]::Arm64)
 
 	function Get-TaskbarPinnedItems
 	{
@@ -3211,6 +3214,74 @@ function UnpinTaskbarShortcuts
 		return $RemovedAny
 	}
 
+	function Invoke-ARM64ShellUnpin
+	{
+		<#
+			.SYNOPSIS
+			ARM64 fallback: Unpin apps using COM shell verb in an in-process STA runspace with timeout.
+			On ARM64, direct COM calls can hang so we run them on a background thread.
+		#>
+		param
+		(
+			[Parameter(Mandatory = $true)]
+			[string[]]$AppNames,
+
+			[int]$TimeoutSeconds = 15
+		)
+
+		$Runspace = [runspacefactory]::CreateRunspace()
+		$Runspace.ApartmentState = "STA"
+		$Runspace.Open()
+
+		$PS = [powershell]::Create()
+		$PS.Runspace = $Runspace
+
+		$null = $PS.AddScript({
+			param ($Names, $PinnedPath)
+			$Shell = New-Object -ComObject Shell.Application
+			$AppsFolder = $Shell.NameSpace("shell:::{4234d49b-0245-4df3-b780-3893943456e1}")
+			$Pinned = $Shell.NameSpace($PinnedPath)
+
+			$VerbCandidates = @('Unpin from taskbar', 'Von Taskleiste losen', 'Desanclar de la barra de tareas',
+				'Detacher de la barre des taches', 'Rimuovi dalla barra delle applicazioni')
+
+			$Items = @()
+			if ($Pinned) { $Items += @($Pinned.Items()) }
+			if ($AppsFolder) { $Items += @($AppsFolder.Items()) }
+
+			foreach ($Name in $Names)
+			{
+				$MatchingItems = @($Items | Where-Object { $_.Name -match $Name })
+				foreach ($Item in $MatchingItems)
+				{
+					$UnpinVerb = $Item.Verbs() | Where-Object {
+						$VerbName = (($_.Name -replace '&', '').Trim())
+						($VerbCandidates -contains $VerbName) -or ($VerbName -match 'Unpin.*taskbar') -or ($VerbName -match 'taskbar.*unpin')
+					} | Select-Object -First 1
+
+					if ($UnpinVerb)
+					{
+						try { $UnpinVerb.DoIt() } catch {}
+					}
+				}
+			}
+		}).AddArgument($AppNames).AddArgument($TaskbarPinnedPath)
+
+		$AsyncResult = $PS.BeginInvoke()
+
+		if (-not $AsyncResult.AsyncWaitHandle.WaitOne([TimeSpan]::FromSeconds($TimeoutSeconds)))
+		{
+			LogWarning "ARM64 shell unpin timed out after $TimeoutSeconds seconds."
+		}
+		else
+		{
+			try { $PS.EndInvoke($AsyncResult) } catch {}
+		}
+
+		$PS.Dispose()
+		$Runspace.Dispose()
+	}
+
 	# Extract the localized "Unpin from taskbar" string from shell32.dll
 	$LocalizedString = [WinAPI.GetStrings]::GetString(5387)
 	$AppsFolder = (New-Object -ComObject Shell.Application).NameSpace("shell:::{4234d49b-0245-4df3-b780-3893943456e1}")
@@ -3220,6 +3291,9 @@ function UnpinTaskbarShortcuts
 	$UnpinFailures = 0
 	$UnpinMisses = 0
 
+	# Always initialize the list; on ARM64 it gets populated, on AMD64 it stays empty
+	$ARM64UnpinNames = [System.Collections.Generic.List[string]]::new()
+
 	foreach ($Shortcut in $Shortcuts)
 	{
 		switch ($Shortcut)
@@ -3228,14 +3302,25 @@ function UnpinTaskbarShortcuts
 			{
 				$MailPatterns = @('^Mail$', 'Mail and Calendar', 'Outlook \(new\)', 'Outlook for Windows')
 				$MailFallbackPatterns = @('Mail*.lnk', '*Outlook*.lnk')
-				$MailItems = @(
-					Get-TaskbarPinnedMatches -Patterns $MailPatterns
-					$AppsFolder.Items() | Where-Object {
-						$_.Name -match 'Mail' -or
-						$_.Name -match 'Outlook \(new\)' -or
-						$_.Name -match 'Outlook for Windows'
-					}
-				) | Select-Object -Unique
+
+				if ($IsARM64)
+				{
+					$null = Remove-TaskbarPinnedLinksByPattern -Patterns $MailFallbackPatterns
+					$ARM64UnpinNames.Add('^Mail$')
+					$ARM64UnpinNames.Add('Mail and Calendar')
+					$ARM64UnpinNames.Add('Outlook \(new\)')
+					$ARM64UnpinNames.Add('Outlook for Windows')
+				}
+				else
+				{
+					$MailItems = @(
+						Get-TaskbarPinnedMatches -Patterns $MailPatterns
+						$AppsFolder.Items() | Where-Object {
+							$_.Name -match 'Mail' -or
+							$_.Name -match 'Outlook \(new\)' -or
+							$_.Name -match 'Outlook for Windows'
+						}
+					) | Select-Object -Unique
 
 					if ($MailItems)
 					{
@@ -3254,10 +3339,19 @@ function UnpinTaskbarShortcuts
 						$null = Remove-TaskbarPinnedLinksByPattern -Patterns $MailFallbackPatterns
 					}
 				}
+			}
 			Edge
 			{
 				$EdgeFallbackPatterns = @('Microsoft Edge*.lnk', 'Edge*.lnk')
-				$EdgeItems = @(Get-TaskbarPinnedMatches -Patterns @('Microsoft Edge', '^Edge$'))
+
+				if ($IsARM64)
+				{
+					$null = Remove-TaskbarPinnedLinksByPattern -Patterns $EdgeFallbackPatterns
+					$ARM64UnpinNames.Add('Microsoft Edge')
+				}
+				else
+				{
+					$EdgeItems = @(Get-TaskbarPinnedMatches -Patterns @('Microsoft Edge', '^Edge$'))
 					if ($EdgeItems)
 					{
 						$EdgeItems | ForEach-Object {
@@ -3275,16 +3369,25 @@ function UnpinTaskbarShortcuts
 						$null = Remove-TaskbarPinnedLinksByPattern -Patterns $EdgeFallbackPatterns
 					}
 				}
+			}
 			Store
 			{
 				$StoreFallbackPatterns = @('Microsoft Store*.lnk', '*Store*.lnk')
-				$StoreItems = @(
-					Get-TaskbarPinnedMatches -Patterns @('Microsoft Store', '^Store$')
-					$AppsFolder.Items() | Where-Object -FilterScript {
-						$_.Name -eq "Microsoft Store" -or
-						$_.Name -eq "Store"
-					}
-				) | Select-Object -Unique
+
+				if ($IsARM64)
+				{
+					$null = Remove-TaskbarPinnedLinksByPattern -Patterns $StoreFallbackPatterns
+					$ARM64UnpinNames.Add('Microsoft Store')
+				}
+				else
+				{
+					$StoreItems = @(
+						Get-TaskbarPinnedMatches -Patterns @('Microsoft Store', '^Store$')
+						$AppsFolder.Items() | Where-Object -FilterScript {
+							$_.Name -eq "Microsoft Store" -or
+							$_.Name -eq "Store"
+						}
+					) | Select-Object -Unique
 					if ($StoreItems)
 					{
 						$StoreItems | ForEach-Object {
@@ -3302,17 +3405,27 @@ function UnpinTaskbarShortcuts
 						$null = Remove-TaskbarPinnedLinksByPattern -Patterns $StoreFallbackPatterns
 					}
 				}
+			}
 			Outlook
 			{
 				$OutlookPatterns = @('Outlook', 'Mail and Calendar')
 				$OutlookFallbackPatterns = @('*Outlook*.lnk', 'Mail*.lnk', '*Office*.lnk')
-				$OutlookItems = @(
-					Get-TaskbarPinnedMatches -Patterns $OutlookPatterns
-					$AppsFolder.Items() | Where-Object -FilterScript {
-						$_.Name -match 'Outlook' -or
-						$_.Name -eq 'Mail and Calendar'
-					}
-				) | Select-Object -Unique
+
+				if ($IsARM64)
+				{
+					$null = Remove-TaskbarPinnedLinksByPattern -Patterns $OutlookFallbackPatterns
+					$ARM64UnpinNames.Add('Outlook')
+					$ARM64UnpinNames.Add('Mail and Calendar')
+				}
+				else
+				{
+					$OutlookItems = @(
+						Get-TaskbarPinnedMatches -Patterns $OutlookPatterns
+						$AppsFolder.Items() | Where-Object -FilterScript {
+							$_.Name -match 'Outlook' -or
+							$_.Name -eq 'Mail and Calendar'
+						}
+					) | Select-Object -Unique
 					if ($OutlookItems)
 					{
 						$OutlookItems | ForEach-Object {
@@ -3330,8 +3443,15 @@ function UnpinTaskbarShortcuts
 						$null = Remove-TaskbarPinnedLinksByPattern -Patterns $OutlookFallbackPatterns
 					}
 				}
+			}
 			Copilot
 			{
+				# Disable the dedicated Copilot taskbar button
+				New-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "ShowCopilotButton" -PropertyType DWord -Value 0 -Force | Out-Null
+
+				# Disable Copilot companion in taskbar search
+				New-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "TaskbarCompanion" -PropertyType DWord -Value 0 -Force | Out-Null
+
 				$CopilotPinPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Taskband\AuxilliaryPins"
 
 				if (-not (Test-Path -Path $CopilotPinPath))
@@ -3342,37 +3462,54 @@ function UnpinTaskbarShortcuts
 				New-ItemProperty -Path $CopilotPinPath -Name "CopilotPWAPin" -PropertyType DWord -Value 0 -Force | Out-Null
 				New-ItemProperty -Path $CopilotPinPath -Name "RecallPin" -PropertyType DWord -Value 0 -Force | Out-Null
 
-				$CopilotItems = @(
-					Get-TaskbarPinnedMatches -Patterns @('Copilot', 'Recall')
-					$AppsFolder.Items() | Where-Object -FilterScript {
-						$_.Name -match 'Copilot'
-					}
-				) | Select-Object -Unique
-				if ($CopilotItems)
+				if ($IsARM64)
 				{
-					$CopilotItems | ForEach-Object {
-						if (-not (Invoke-TaskbarUnpinWithFallback -ShellItem $_))
-						{
-							$UnpinFailures++
-						}
-					}
+					$null = Remove-TaskbarPinnedLinksByPattern -Patterns @('*Copilot*.lnk', '*Recall*.lnk')
+					$ARM64UnpinNames.Add('Copilot')
 				}
 				else
 				{
-					LogInfo "Taskbar shortcut target 'Copilot' was not found."
-					$UnpinMisses++
+					$CopilotItems = @(
+						Get-TaskbarPinnedMatches -Patterns @('Copilot', 'Recall')
+						$AppsFolder.Items() | Where-Object -FilterScript {
+							$_.Name -match 'Copilot'
+						}
+					) | Select-Object -Unique
+					if ($CopilotItems)
+					{
+						$CopilotItems | ForEach-Object {
+							if (-not (Invoke-TaskbarUnpinWithFallback -ShellItem $_))
+							{
+								$UnpinFailures++
+							}
+						}
+					}
+					else
+					{
+						LogInfo "Taskbar shortcut target 'Copilot' was not found."
+						$UnpinMisses++
+					}
 				}
 			}
 			Microsoft365
 			{
 				$Microsoft365FallbackPatterns = @('*Microsoft 365*.lnk', '*Office*.lnk')
-				$Microsoft365Items = @(
-					Get-TaskbarPinnedMatches -Patterns @('Microsoft 365', 'Office')
-					$AppsFolder.Items() | Where-Object -FilterScript {
-						$_.Name -match "Microsoft 365" -or
-						$_.Name -match "Office"
-					}
-				) | Select-Object -Unique
+
+				if ($IsARM64)
+				{
+					$null = Remove-TaskbarPinnedLinksByPattern -Patterns $Microsoft365FallbackPatterns
+					$ARM64UnpinNames.Add('Microsoft 365')
+					$ARM64UnpinNames.Add('^Office$')
+				}
+				else
+				{
+					$Microsoft365Items = @(
+						Get-TaskbarPinnedMatches -Patterns @('Microsoft 365', 'Office')
+						$AppsFolder.Items() | Where-Object -FilterScript {
+							$_.Name -match "Microsoft 365" -or
+							$_.Name -match "Office"
+						}
+					) | Select-Object -Unique
 
 					if ($Microsoft365Items)
 					{
@@ -3391,8 +3528,28 @@ function UnpinTaskbarShortcuts
 						$null = Remove-TaskbarPinnedLinksByPattern -Patterns $Microsoft365FallbackPatterns
 					}
 				}
+			}
 		}
 	}
+
+	# ARM64: run COM unpin in a background STA runspace with timeout
+	if ($IsARM64 -and $ARM64UnpinNames.Count -gt 0)
+	{
+		Invoke-ARM64ShellUnpin -AppNames $ARM64UnpinNames.ToArray() -TimeoutSeconds 15
+	}
+
+	# Restart Explorer to apply taskbar changes
+	try
+	{
+		Stop-Process -Name "explorer" -Force -ErrorAction SilentlyContinue
+		Start-Sleep -Milliseconds 500
+		Start-Process "explorer.exe" -ErrorAction SilentlyContinue
+	}
+	catch
+	{
+		LogWarning "Failed to restart Explorer after taskbar unpin: $($_.Exception.Message)"
+	}
+
 	if ($UnpinFailures -gt 0)
 	{
 		Write-ConsoleStatus -Status warning

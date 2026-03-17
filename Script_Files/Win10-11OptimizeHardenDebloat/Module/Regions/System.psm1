@@ -2963,15 +2963,33 @@ function CurrentNetwork
 		{
 			Write-ConsoleStatus -Action "Setting current network profile to Private"
 			LogInfo "Setting current network profile to Private"
-			Set-NetConnectionProfile -NetworkCategory Private | Out-Null
-			Write-ConsoleStatus -Status success
+			try
+			{
+				Set-NetConnectionProfile -NetworkCategory Private -ErrorAction Stop | Out-Null
+				Write-ConsoleStatus -Status success
+			}
+			catch
+			{
+				Write-ConsoleStatus -Status warning
+				LogWarning "Failed to set network profile to Private: $($_.Exception.Message)"
+				Remove-HandledErrorRecord -ErrorRecord $_
+			}
 		}
 		"Public"
 		{
 			Write-ConsoleStatus -Action "Setting current network profile to Public"
 			LogInfo "Setting current network profile to Public"
-			Set-NetConnectionProfile -NetworkCategory Public | Out-Null
-			Write-ConsoleStatus -Status success
+			try
+			{
+				Set-NetConnectionProfile -NetworkCategory Public -ErrorAction Stop | Out-Null
+				Write-ConsoleStatus -Status success
+			}
+			catch
+			{
+				Write-ConsoleStatus -Status warning
+				LogWarning "Failed to set network profile to Public: $($_.Exception.Message)"
+				Remove-HandledErrorRecord -ErrorRecord $_
+			}
 		}
 	}
 }
@@ -5115,7 +5133,7 @@ function WinPrtScrFolder
 			# This function works only if OneDrive was already uninstalled, or user is intended to uninstall "OneDrive -Uninstall" within commandline
 			$PresetName = (Get-Variable -Name MyInvocation -Scope Script).Value.PSCommandPath
 			$PSCallStack = (Get-PSCallStack).Position.Text
-			$OneDriveInstalled = Get-Package -Name "Microsoft OneDrive" -ProviderName Programs -Force -ErrorAction Ignore
+			$OneDriveInstalled = Get-Package -Name "Microsoft OneDrive" -ProviderName Programs -Force -ErrorAction Ignore -WarningAction SilentlyContinue
 
 			# Checking whether function was called from Functions.ps1
 			if ($PresetName -match "Functions.ps1")
@@ -5744,10 +5762,19 @@ function NetworkDiscovery
 		{
 			Write-ConsoleStatus -Action "Enabling Network Discovery and File and Printers Sharing"
 			LogInfo "Enabling Network Discovery and File and Printers Sharing"
-			Set-NetFirewallRule -Group $FirewallRules -Profile Private -Enabled True | Out-Null
-			Set-NetFirewallRule -Profile Private -Name FPS-SMB-In-TCP -Enabled True | Out-Null
-			Set-NetConnectionProfile -NetworkCategory Private | Out-Null
-			Write-ConsoleStatus -Status success
+			try
+			{
+				Set-NetFirewallRule -Group $FirewallRules -Profile Private -Enabled True -ErrorAction Stop | Out-Null
+				Set-NetFirewallRule -Profile Private -Name FPS-SMB-In-TCP -Enabled True -ErrorAction Stop | Out-Null
+				Set-NetConnectionProfile -NetworkCategory Private -ErrorAction Stop | Out-Null
+				Write-ConsoleStatus -Status success
+			}
+			catch
+			{
+				Write-ConsoleStatus -Status warning
+				LogWarning "Failed to enable Network Discovery and File and Printers Sharing: $($_.Exception.Message)"
+				Remove-HandledErrorRecord -ErrorRecord $_
+			}
 		}
 		"Disable"
 		{
@@ -7000,12 +7027,12 @@ function DefaultTerminalApp
 	{
 		"WindowsTerminal"
 		{
-			if (Get-AppxPackage -Name Microsoft.WindowsTerminal)
+			if (Get-AppxPackage -Name Microsoft.WindowsTerminal -WarningAction SilentlyContinue)
 			{
 				Write-ConsoleStatus -Action "Setting Windows Terminal as default terminal app"
 				LogInfo "Setting Windows Terminal as default terminal app"
 				# Checking if the Terminal version supports such feature
-				$TerminalVersion = (Get-AppxPackage -Name Microsoft.WindowsTerminal).Version
+				$TerminalVersion = (Get-AppxPackage -Name Microsoft.WindowsTerminal -WarningAction SilentlyContinue).Version
 				if ([System.Version]$TerminalVersion -ge [System.Version]"1.11")
 				{
 					if (-not (Test-Path -Path "HKCU:\Console\%%Startup"))
@@ -7014,7 +7041,7 @@ function DefaultTerminalApp
 					}
 
 					# Find the current GUID of Windows Terminal
-					$PackageFullName = (Get-AppxPackage -Name Microsoft.WindowsTerminal).PackageFullName
+					$PackageFullName = (Get-AppxPackage -Name Microsoft.WindowsTerminal -WarningAction SilentlyContinue).PackageFullName
 					Get-ChildItem -Path "HKLM:\SOFTWARE\Classes\PackagedCom\Package\$PackageFullName\Class" | ForEach-Object -Process {
 						if ((Get-ItemPropertyValue -Path $_.PSPath -Name ServerId) -eq 0)
 						{
@@ -7697,7 +7724,7 @@ function PreventEdgeShortcutCreation
 		$Disable
 	)
 
-	if (-not (Get-Package -Name "Microsoft Edge" -ProviderName Programs -ErrorAction Ignore))
+	if (-not (Get-Package -Name "Microsoft Edge" -ProviderName Programs -ErrorAction Ignore -WarningAction SilentlyContinue))
 	{
 		LogWarning ($Localization.Skipped -f $MyInvocation.Line.Trim())
 		return
@@ -7716,7 +7743,7 @@ function PreventEdgeShortcutCreation
 			{
 				Write-ConsoleStatus -Action "Preventing desktop shortcut creation for Microsoft Edge Stable Channel"
 				LogInfo "Preventing desktop shortcut creation for Microsoft Edge Stable Channel"
-				if (Get-Package -Name "Microsoft Edge" -ProviderName Programs -ErrorAction SilentlyContinue)
+				if (Get-Package -Name "Microsoft Edge" -ProviderName Programs -ErrorAction SilentlyContinue -WarningAction SilentlyContinue)
 				{
 					New-ItemProperty -Path HKLM:\SOFTWARE\Policies\Microsoft\EdgeUpdate -Name "CreateDesktopShortcut{56EB18F8-B008-4CBD-B6D2-8C97FE7E9062}" -PropertyType DWord -Value 0 -Force | Out-Null
 					Set-Policy -Scope Computer -Path SOFTWARE\Policies\Microsoft\EdgeUpdate -Name "CreateDesktopShortcut{56EB18F8-B008-4CBD-B6D2-8C97FE7E9062}" -Type DWORD -Value 3 | Out-Null
@@ -7725,7 +7752,7 @@ function PreventEdgeShortcutCreation
 			}
 			Beta
 			{
-				if (Get-Package -Name "Microsoft Edge Beta" -ProviderName Programs -ErrorAction SilentlyContinue)
+				if (Get-Package -Name "Microsoft Edge Beta" -ProviderName Programs -ErrorAction SilentlyContinue -WarningAction SilentlyContinue)
 				{
 					Write-ConsoleStatus -Action "Preventing desktop shortcut creation for Microsoft Edge Beta Channel"
 					LogInfo "Preventing desktop shortcut creation for Microsoft Edge Beta Channel"
@@ -7736,7 +7763,7 @@ function PreventEdgeShortcutCreation
 			}
 			Dev
 			{
-				if (Get-Package -Name "Microsoft Edge Dev" -ProviderName Programs -ErrorAction SilentlyContinue)
+				if (Get-Package -Name "Microsoft Edge Dev" -ProviderName Programs -ErrorAction SilentlyContinue -WarningAction SilentlyContinue)
 				{
 					Write-ConsoleStatus -Action "Preventing desktop shortcut creation for Microsoft Edge Dev Channel"
 					LogInfo "Preventing desktop shortcut creation for Microsoft Edge Dev Channel"
@@ -7747,7 +7774,7 @@ function PreventEdgeShortcutCreation
 			}
 			Canary
 			{
-				if (Get-Package -Name "Microsoft Edge Canary" -ProviderName Programs -ErrorAction SilentlyContinue)
+				if (Get-Package -Name "Microsoft Edge Canary" -ProviderName Programs -ErrorAction SilentlyContinue -WarningAction SilentlyContinue)
 				{
 					Write-ConsoleStatus -Action "Preventing desktop shortcut creation for Microsoft Edge Canary Channel"
 					LogInfo "Preventing desktop shortcut creation for Microsoft Edge Canary Channel"

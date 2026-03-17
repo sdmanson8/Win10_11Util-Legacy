@@ -138,7 +138,7 @@ function XboxGameTips
 		$Enable
 	)
 
-	if (-not (Get-AppxPackage -Name Microsoft.GamingApp))
+	if (-not (Get-AppxPackage -Name Microsoft.GamingApp -WarningAction SilentlyContinue))
 	{
 		LogWarning ($Localization.Skipped -f $MyInvocation.Line.Trim())
 

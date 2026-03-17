@@ -95,7 +95,7 @@ function OneDrive
 				$resolvedOneDriveSetup = Get-OneDriveSetupPath
 
 				# Ensure UninstallString exists
-				[string]$UninstallString = Get-Package -Name "Microsoft OneDrive" -ProviderName Programs -ErrorAction Ignore |
+				[string]$UninstallString = Get-Package -Name "Microsoft OneDrive" -ProviderName Programs -ErrorAction Ignore -WarningAction SilentlyContinue |
    				ForEach-Object { $_.Meta.Attributes["UninstallString"] }
 
 				if (-not $UninstallString) {
@@ -164,7 +164,7 @@ function OneDrive
 			try
 			{
 				$resolvedOneDriveSetup = Get-OneDriveSetupPath
-				$OneDrive = Get-Package -Name "Microsoft OneDrive" -ProviderName Programs -Force -ErrorAction Ignore
+				$OneDrive = Get-Package -Name "Microsoft OneDrive" -ProviderName Programs -Force -ErrorAction Ignore -WarningAction SilentlyContinue
 				if ($OneDrive)
 				{
 					LogInfo ($Localization.Skipped -f $MyInvocation.Line.Trim())
