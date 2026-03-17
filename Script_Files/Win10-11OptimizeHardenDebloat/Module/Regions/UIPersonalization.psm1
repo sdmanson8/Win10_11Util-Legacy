@@ -3039,6 +3039,8 @@ function UnpinTaskbarShortcuts
 	$IsARM64 = ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") -or
 		($env:PROCESSOR_ARCHITEW6432 -eq "ARM64") -or
 		([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture -eq [System.Runtime.InteropServices.Architecture]::Arm64)
+	$IsWindows10 = [System.Environment]::OSVersion.Version.Build -lt 22000
+	$NeedsDeferredUnpin = $IsARM64 -or $IsWindows10
 
 	function Get-TaskbarPinnedItems
 	{
@@ -3291,8 +3293,8 @@ function UnpinTaskbarShortcuts
 	$UnpinFailures = 0
 	$UnpinMisses = 0
 
-	# Always initialize the list; on ARM64 it gets populated, on AMD64 it stays empty
-	$ARM64UnpinNames = [System.Collections.Generic.List[string]]::new()
+	# Always initialize the list; populated on ARM64 and Windows 10
+	$DeferredUnpinNames = [System.Collections.Generic.List[string]]::new()
 
 	foreach ($Shortcut in $Shortcuts)
 	{
@@ -3303,13 +3305,13 @@ function UnpinTaskbarShortcuts
 				$MailPatterns = @('^Mail$', 'Mail and Calendar', 'Outlook \(new\)', 'Outlook for Windows')
 				$MailFallbackPatterns = @('Mail*.lnk', '*Outlook*.lnk')
 
-				if ($IsARM64)
+				if ($NeedsDeferredUnpin)
 				{
 					$null = Remove-TaskbarPinnedLinksByPattern -Patterns $MailFallbackPatterns
-					$ARM64UnpinNames.Add('^Mail$')
-					$ARM64UnpinNames.Add('Mail and Calendar')
-					$ARM64UnpinNames.Add('Outlook \(new\)')
-					$ARM64UnpinNames.Add('Outlook for Windows')
+					$DeferredUnpinNames.Add('^Mail$')
+					$DeferredUnpinNames.Add('Mail and Calendar')
+					$DeferredUnpinNames.Add('Outlook \(new\)')
+					$DeferredUnpinNames.Add('Outlook for Windows')
 				}
 				else
 				{
@@ -3344,10 +3346,10 @@ function UnpinTaskbarShortcuts
 			{
 				$EdgeFallbackPatterns = @('Microsoft Edge*.lnk', 'Edge*.lnk')
 
-				if ($IsARM64)
+				if ($NeedsDeferredUnpin)
 				{
 					$null = Remove-TaskbarPinnedLinksByPattern -Patterns $EdgeFallbackPatterns
-					$ARM64UnpinNames.Add('Microsoft Edge')
+					$DeferredUnpinNames.Add('Microsoft Edge')
 				}
 				else
 				{
@@ -3374,10 +3376,10 @@ function UnpinTaskbarShortcuts
 			{
 				$StoreFallbackPatterns = @('Microsoft Store*.lnk', '*Store*.lnk')
 
-				if ($IsARM64)
+				if ($NeedsDeferredUnpin)
 				{
 					$null = Remove-TaskbarPinnedLinksByPattern -Patterns $StoreFallbackPatterns
-					$ARM64UnpinNames.Add('Microsoft Store')
+					$DeferredUnpinNames.Add('Microsoft Store')
 				}
 				else
 				{
@@ -3411,11 +3413,11 @@ function UnpinTaskbarShortcuts
 				$OutlookPatterns = @('Outlook', 'Mail and Calendar')
 				$OutlookFallbackPatterns = @('*Outlook*.lnk', 'Mail*.lnk', '*Office*.lnk')
 
-				if ($IsARM64)
+				if ($NeedsDeferredUnpin)
 				{
 					$null = Remove-TaskbarPinnedLinksByPattern -Patterns $OutlookFallbackPatterns
-					$ARM64UnpinNames.Add('Outlook')
-					$ARM64UnpinNames.Add('Mail and Calendar')
+					$DeferredUnpinNames.Add('Outlook')
+					$DeferredUnpinNames.Add('Mail and Calendar')
 				}
 				else
 				{
@@ -3462,10 +3464,10 @@ function UnpinTaskbarShortcuts
 				New-ItemProperty -Path $CopilotPinPath -Name "CopilotPWAPin" -PropertyType DWord -Value 0 -Force | Out-Null
 				New-ItemProperty -Path $CopilotPinPath -Name "RecallPin" -PropertyType DWord -Value 0 -Force | Out-Null
 
-				if ($IsARM64)
+				if ($NeedsDeferredUnpin)
 				{
 					$null = Remove-TaskbarPinnedLinksByPattern -Patterns @('*Copilot*.lnk', '*Recall*.lnk')
-					$ARM64UnpinNames.Add('Copilot')
+					$DeferredUnpinNames.Add('Copilot')
 				}
 				else
 				{
@@ -3495,11 +3497,11 @@ function UnpinTaskbarShortcuts
 			{
 				$Microsoft365FallbackPatterns = @('*Microsoft 365*.lnk', '*Office*.lnk')
 
-				if ($IsARM64)
+				if ($NeedsDeferredUnpin)
 				{
 					$null = Remove-TaskbarPinnedLinksByPattern -Patterns $Microsoft365FallbackPatterns
-					$ARM64UnpinNames.Add('Microsoft 365')
-					$ARM64UnpinNames.Add('^Office$')
+					$DeferredUnpinNames.Add('Microsoft 365')
+					$DeferredUnpinNames.Add('^Office$')
 				}
 				else
 				{
@@ -3532,10 +3534,10 @@ function UnpinTaskbarShortcuts
 		}
 	}
 
-	# ARM64: run COM unpin in a background STA runspace with timeout
-	if ($IsARM64 -and $ARM64UnpinNames.Count -gt 0)
+	# ARM64 and Windows 10: run COM unpin in a background STA runspace with timeout
+	if ($NeedsDeferredUnpin -and $DeferredUnpinNames.Count -gt 0)
 	{
-		Invoke-ARM64ShellUnpin -AppNames $ARM64UnpinNames.ToArray() -TimeoutSeconds 15
+		Invoke-ARM64ShellUnpin -AppNames $DeferredUnpinNames.ToArray() -TimeoutSeconds 15
 	}
 
 	# Restart Explorer to apply taskbar changes
