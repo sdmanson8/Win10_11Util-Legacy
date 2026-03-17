@@ -1705,9 +1705,9 @@ MostUsedStartApps -Hide
 # MostUsedStartApps -Show
 
 # Hide the All section with categories in Start (Windows 11 24H2 build 26100.7705+ / 26H1 build 28000.1575+)
-StartMenuAllSectionCategories -Hide
+# StartMenuAllSectionCategories -Hide
 # Show the All section with categories in Start (Windows 11 24H2 build 26100.7705+ / 26H1 build 28000.1575+) (default value)
-# StartMenuAllSectionCategories -Show
+StartMenuAllSectionCategories -Show
 #endregion Start Menu Apps
 
 #region Update Policies

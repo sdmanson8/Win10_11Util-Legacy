@@ -3099,8 +3099,8 @@ function UnpinTaskbarShortcuts
 		$unpinVerb = $ShellItem.Verbs() | Where-Object {
 			$verbName = (($_.Name -replace '&', '').Trim())
 			($verbCandidates -contains $verbName) -or
-			($verbName -match 'Unpin') -or
-			($verbName -match 'taskbar')
+			($verbName -like '*Unpin*') -or
+			($verbName -like '*taskbar*')
 		} | Select-Object -First 1
 
 		if ($unpinVerb)
