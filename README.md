@@ -1,3 +1,8 @@
-Open the Required README file for your System 
+Open run.cmd on your Windows 10 / 11 System
 
-![image](https://user-images.githubusercontent.com/90516190/134969613-8ad5dcb2-aa10-43ad-b920-4e6867de06b9.png)
+****Please Note: This repo is now dormant and won't be updated, please check out the GUI version****
+
+Windows 11
+![image](<img width="915" height="507" alt="image" src="https://github.com/user-attachments/assets/5935d4bf-cf26-45cc-9410-6136da639a4e" />)
+
+![image](<img width="915" height="507" alt="image" src="https://github.com/user-attachments/assets/3d9018f4-9af1-4195-98b6-c83aa0b6c75a" />)
