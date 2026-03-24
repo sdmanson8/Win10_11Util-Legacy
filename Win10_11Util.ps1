@@ -1070,7 +1070,7 @@ WindowsManageDefaultPrinter -Disable
 	Disable the Windows features using the pop-up dialog box
 	If you want to leave "Multimedia settings" element in the advanced settings of Power Options do not disable the "Media Features" feature
 #>
-WindowsFeatures -Disable
+# WindowsFeatures -Disable
 # Enable the Windows features using the pop-up dialog box
 # WindowsFeatures -Enable
 
@@ -1078,7 +1078,7 @@ WindowsFeatures -Disable
 	Uninstall optional features using the pop-up dialog box
 	If you want to leave "Multimedia settings" element in the advanced settings of Power Options do not uninstall the "Media Features" feature
 #>
-WindowsCapabilities -Uninstall
+# WindowsCapabilities -Uninstall
 # Install optional features using the pop-up dialog box
 # WindowsCapabilities -Install
 
@@ -1238,7 +1238,7 @@ LatestInstalled.NET -Enable
 RecommendedTroubleshooting -Default
 
 # Disable and delete reserved storage after the next update installation
-ReservedStorage -Disable
+# ReservedStorage -Disable
 # Enable reserved storage
 # ReservedStorage -Enable
 
@@ -1358,7 +1358,7 @@ StartLayout -ShowMorePins
 # Install Copilot App
 #Copilot -Install
 # Uninstall Copilot App
-Copilot -Uninstall
+# Copilot -Uninstall
 
 # Install UWP apps using the pop-up dialog box
 # UWPApps -Install
@@ -1537,7 +1537,7 @@ Set-WindowsFirewallLogging
 # Enable Windows Sandbox. Applicable only to Professional, Enterprise and Education editions
 # WindowsSandbox -Enable
 # Disable Windows Sandbox (default value). Applicable only to Professional, Enterprise and Education editions
-WindowsSandbox -Disable
+# WindowsSandbox -Disable
 
 <#
 	Enable DNS-over-HTTPS for IPv4
@@ -1581,7 +1581,7 @@ CIMemoryIntegrity -Disable
 
 # Enable Windows Defender Application Guard - Applicable since 1709 Enterprise and 1803 Pro. Not applicable to Server
 # Not supported on VMs and VDI environment. Check requirements on https://docs.microsoft.com/en-us/windows/security/threat-protection/windows-defender-application-guard/reqs-wd-app-guard
-DefenderAppGuard -Enable
+# DefenderAppGuard -Enable
 # Disable Windows Defender Application Guard (default value)
 # DefenderAppGuard -Disable
 
